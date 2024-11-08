@@ -1,0 +1,93 @@
+---
+- name: Setup Docker on app servers
+  hosts: app
+  become: true
+  tasks:
+    - name: Install required packages for Docker
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - software-properties-common
+      when: ansible_os_family == "Debian"
+
+    - name: Install required packages for Docker on RedHat-based systems
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - yum-utils
+        - device-mapper-persistent-data
+        - lvm2
+      when: ansible_os_family == "RedHat"
+      
+
+    - name: Add Docker GPG key
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Add Docker repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install Docker
+      ansible.builtin.package:
+        name: docker-ce
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Add Docker repository on RedHat-based systems
+      ansible.builtin.yum_repository:
+        name: docker-ce
+        description: Docker Repository
+        baseurl: https://download.docker.com/linux/centos/9/x86_64/stable/
+        gpgcheck: yes
+        gpgkey: https://download.docker.com/linux/centos/gpg
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Install Docker on RedHat-based systems
+      yum:
+        name: docker
+        state: present
+      when: ansible_os_family == "RedHat"
+    
+    - name: Start and enable Docker service
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+
+- name: Setup PostgreSQL on database servers
+  hosts: database
+  become: true
+  tasks:
+    - name: Install PostgreSQL
+      ansible.builtin.package:
+        name: "postgresql-{{ postgresql_version }}"
+        state: present
+
+    - name: Update PostgreSQL data directory
+      ansible.builtin.shell: |
+        sudo systemctl stop postgresql
+        sudo mkdir -p {{ postgresql_data_dir }}
+        sudo chown -R postgres:postgres {{ postgresql_data_dir }}
+        sudo -u postgres /usr/lib/postgresql/{{ postgresql_version }}/bin/initdb -D {{ postgresql_data_dir }}
+        sudo sed -i "s|^data_directory =.*|data_directory = '{{ postgresql_data_dir }}'|" /etc/postgresql/{{ postgresql_version }}/main/postgresql.conf
+        sudo systemctl start postgresql
+
+
+
+    - name: Ensure PostgreSQL service is started and enabled
+      ansible.builtin.service:
+        name: postgresql
+        state: started
+        enabled: true
