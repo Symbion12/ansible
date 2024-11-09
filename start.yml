@@ -55,7 +55,7 @@
 
     - name: Install Docker on RedHat-based systems
       yum:
-        name: docker
+        name: docker-ce
         state: present
       when: ansible_os_family == "RedHat"
     
